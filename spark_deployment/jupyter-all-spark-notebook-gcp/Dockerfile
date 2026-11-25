@@ -5,11 +5,6 @@ USER root
 RUN mkdir -p ${SPARK_HOME}/logs && chmod a+wr ${SPARK_HOME}/logs
 RUN mkdir -p ${SPARK_HOME}/work && chmod a+wr ${SPARK_HOME}/work
 
-RUN mv ${SPARK_HOME}/jars/hadoop-client-api-3.5.0.jar ${SPARK_HOME}/jars/hadoop-client-api-3.5.0.jar.bk
-RUN mv ${SPARK_HOME}/jars/hadoop-client-runtime-3.5.0.jar ${SPARK_HOME}/jars/hadoop-client-runtime-3.5.0.jar.bk
-
-COPY *.jar ${SPARK_HOME}/jars/
-
 # Install zstandard required by Spark SDP CLI
 # RUN python3 -m pip install zstandard
 
