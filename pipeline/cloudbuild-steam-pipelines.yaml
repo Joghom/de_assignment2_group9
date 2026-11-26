@@ -1,0 +1,76 @@
+# Lab 8 end-to-end: create Dataproc cluster -> clean (pipeline 0) -> pipeline 1 + 2 -> delete cluster
+# Before running: upload the three pipeline .py files to gs://<_SCRIPTS_BUCKET>/
+#   _SCRIPTS_BUCKET = bucket with the .py files, _DATA_REPO = data bucket (Spark temp storage)
+# Trigger substitutions (defaults below): _DATA_REPO, _REGION
+steps:
+  - id: create-cluster
+    name: 'gcr.io/cloud-builders/gcloud'
+    args:
+      - 'dataproc'
+      - 'clusters'
+      - 'create'
+      - '$_CLUSTER'
+      - '--region=$_REGION'
+      - '--enable-component-gateway'
+      - '--public-ip-address'
+      - '--master-machine-type=n4d-standard-2'
+      - '--master-boot-disk-type=hyperdisk-balanced'
+      - '--master-boot-disk-size=50'
+      - '--num-workers=2'
+      - '--worker-machine-type=n4d-standard-2'
+      - '--worker-boot-disk-type=hyperdisk-balanced'
+      - '--worker-boot-disk-size=50'
+      - '--image-version=3.0-ubuntu24'
+      - '--scopes=https://www.googleapis.com/auth/cloud-platform'
+      - '--max-idle=30m'
+      - '--project=$PROJECT_ID'
+
+  - id: pipeline-0-clean
+    name: 'gcr.io/cloud-builders/gcloud'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        gcloud dataproc jobs submit pyspark gs://$_SCRIPTS_BUCKET/pipeline0_clean.py \
+          --cluster=$_CLUSTER --region=$_REGION -- \
+          --project_id=$PROJECT_ID --bucket=$_DATA_REPO --dataset=$_DATASET \
+        || { gcloud dataproc clusters delete $_CLUSTER --region=$_REGION --quiet; exit 1; }
+
+  - id: pipeline-1
+    name: 'gcr.io/cloud-builders/gcloud'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        gcloud dataproc jobs submit pyspark gs://$_SCRIPTS_BUCKET/pipeline1_genre_top_games.py \
+          --cluster=$_CLUSTER --region=$_REGION -- \
+          --project_id=$PROJECT_ID --bucket=$_DATA_REPO --dataset=$_DATASET \
+        || { gcloud dataproc clusters delete $_CLUSTER --region=$_REGION --quiet; exit 1; }
+
+  - id: pipeline-2
+    name: 'gcr.io/cloud-builders/gcloud'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        gcloud dataproc jobs submit pyspark gs://$_SCRIPTS_BUCKET/pipeline2_bundle_value.py \
+          --cluster=$_CLUSTER --region=$_REGION -- \
+          --project_id=$PROJECT_ID --bucket=$_DATA_REPO --dataset=$_DATASET \
+        || { gcloud dataproc clusters delete $_CLUSTER --region=$_REGION --quiet; exit 1; }
+
+  - id: delete-cluster
+    name: 'gcr.io/cloud-builders/gcloud'
+    args: ['dataproc', 'clusters', 'delete', '$_CLUSTER', '--region=$_REGION', '--quiet']
+
+substitutions:
+  _DATA_REPO: 'assign2_data'
+  _SCRIPTS_BUCKET: 'assign2_scripts'
+  _REGION: 'us-central1'
+  _DATASET: 'dataset'
+  _CLUSTER: 'cluster-steam'
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+  substitution_option: 'ALLOW_LOOSE'
+
+timeout: '2400s'
